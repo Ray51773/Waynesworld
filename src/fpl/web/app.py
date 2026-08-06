@@ -10,6 +10,7 @@ yet, so no page pretends to have one; the projection columns arrive at Milestone
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -47,8 +48,24 @@ def get_config() -> Config:
     return load_config()
 
 
+# One open handle for the whole process, shared out as cursors. See Database.cursor:
+# DuckDB permits a single writing process, so the server cannot keep reopening the
+# file — that is what made refreshing from the UI impossible before.
+_shared_db: Database | None = None
+_db_lock = threading.Lock()
+
+
+def get_shared_db(config: Config) -> Database:
+    global _shared_db
+    with _db_lock:
+        if _shared_db is None:
+            _shared_db = Database(config.db_path)
+        return _shared_db
+
+
 def open_db(config: Config) -> Database:
-    return Database(config.db_path, read_only=True)
+    """A per-request cursor. Closing it releases the cursor, not the database."""
+    return get_shared_db(config).cursor()
 
 
 # ------------------------------------------------------------------ formatting
@@ -70,6 +87,20 @@ def _fmt_countdown(target: datetime) -> str:
 templates.env.filters["countdown"] = _fmt_countdown
 
 
+def asset_version() -> str:
+    """Fingerprint for the CSS and JS, so a browser never serves stale assets.
+
+    Without this, editing app.js leaves every already-open tab running the old copy
+    until someone hard-reloads — which is exactly how a working feature looks broken.
+    """
+    stamp = 0.0
+    for name in ("static/style.css", "static/app.js", "static/squad.js"):
+        path = HERE / name
+        if path.exists():
+            stamp = max(stamp, path.stat().st_mtime)
+    return str(int(stamp))
+
+
 def _base_context(request: Request, config: Config, db: Database) -> dict[str, Any]:
     """Deadline and freshness banner, shown on every page."""
     next_event = db.query(
@@ -85,6 +116,7 @@ def _base_context(request: Request, config: Config, db: Database) -> dict[str, A
         "manager_id": config.manager_id,
         "has_manager": config.has_manager,
         "season": config.season,
+        "asset_version": asset_version(),
     }
 
 
@@ -454,7 +486,7 @@ def squad_page(request: Request):
 def squad_save(payload: dict = Body(...)):
     """Persist a hand-entered squad. Append-only, so earlier entries survive."""
     config = get_config()
-    db = Database(config.db_path)
+    db = open_db(config)
     try:
         model = get_model(config, db)
         entries = payload.get("players") or []
@@ -581,3 +613,104 @@ def captain_page(request: Request):
         return templates.TemplateResponse(request, "captain.html", context)
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------- refreshing
+# Runs on a worker thread so the page stays responsive: a full refresh with player
+# summaries takes about a minute. State lives here rather than in the database
+# because it describes this process, not the data.
+_refresh_state: dict[str, Any] = {
+    "running": False,
+    "started_at": None,
+    "finished_at": None,
+    "summary": None,
+    "error": None,
+    "notes": [],
+    "rows": {},
+}
+_refresh_lock = threading.Lock()
+
+
+def _do_refresh(config: Config, include_players: bool) -> None:
+    from ..refresh import run_refresh
+
+    db = open_db(config)
+    try:
+        report = run_refresh(config, db, include_players=include_players)
+        changed = sum(report.rows_written.values())
+        if changed:
+            parts = ", ".join(
+                f"{count:,} {table.replace('_', ' ')}"
+                for table, count in sorted(report.rows_written.items(), key=lambda kv: -kv[1])[:4]
+            )
+            summary = f"Updated {parts}."
+        elif report.cache_hits and not report.fetches:
+            summary = "Already up to date — nothing had changed since the last check."
+        else:
+            summary = "Checked everything; nothing had changed."
+
+        with _refresh_lock:
+            _refresh_state.update({
+                "summary": summary,
+                "notes": report.notes,
+                "rows": report.rows_written,
+                "error": None,
+            })
+        # New data means the fitted model is stale.
+        _model_cache["key"] = None
+    except Exception as exc:                     # surfaced to the user, not swallowed
+        with _refresh_lock:
+            _refresh_state["error"] = f"{type(exc).__name__}: {exc}"
+            _refresh_state["summary"] = None
+    finally:
+        db.close()
+        with _refresh_lock:
+            _refresh_state["running"] = False
+            _refresh_state["finished_at"] = datetime.now(timezone.utc)
+
+
+@app.post("/api/refresh")
+def start_refresh(payload: dict = Body(default={})):
+    """Kick off a data refresh. Returns immediately; poll /api/refresh for progress."""
+    config = get_config()
+    include_players = bool(payload.get("players"))
+
+    with _refresh_lock:
+        if _refresh_state["running"]:
+            return JSONResponse({"ok": False, "error": "A refresh is already running."},
+                                status_code=409)
+        _refresh_state.update({
+            "running": True,
+            "started_at": datetime.now(timezone.utc),
+            "finished_at": None,
+            "summary": None,
+            "error": None,
+            "notes": [],
+            "rows": {},
+        })
+
+    thread = threading.Thread(target=_do_refresh, args=(config, include_players), daemon=True)
+    thread.start()
+    return {"ok": True, "running": True, "players": include_players}
+
+
+@app.get("/api/refresh")
+def refresh_status():
+    config = get_config()
+    db = open_db(config)
+    try:
+        last = db.scalar("SELECT MAX(fetched_at) FROM snapshots")
+    finally:
+        db.close()
+
+    with _refresh_lock:
+        state = dict(_refresh_state)
+
+    return {
+        "running": state["running"],
+        "summary": state["summary"],
+        "error": state["error"],
+        "notes": state["notes"],
+        "last_refresh": last.isoformat() if last else None,
+        "last_refresh_human": last.strftime("%d %b %H:%M") + " UTC" if last else None,
+    }

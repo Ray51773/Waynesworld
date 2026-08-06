@@ -40,6 +40,23 @@ class Database:
         self.con.execute(SCHEMA_SQL.read_text(encoding="utf-8"))
         self.con.execute(VIEWS_SQL.read_text(encoding="utf-8"))
 
+    def cursor(self) -> "Database":
+        """A second handle on the same open database.
+
+        DuckDB allows one writing process at a time, so a long-lived server cannot
+        keep opening its own connections to the file — the moment it wants to write,
+        it would be fighting itself. Instead the process opens the file once and hands
+        out cursors, which share that instance and are safe to use per request.
+        """
+        child = object.__new__(Database)
+        child.path = self.path
+        child.con = self.con.cursor()
+        # Session settings are per-connection, not inherited from the parent. Without
+        # this a cursor hands back local time while everything is labelled UTC, which
+        # silently misreports the deadline by an hour in British summer time.
+        child.con.execute("SET TimeZone='UTC'")
+        return child
+
     def close(self) -> None:
         self.con.close()
 

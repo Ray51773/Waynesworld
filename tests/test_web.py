@@ -132,3 +132,33 @@ def test_advice_gives_every_player_a_verdict(client):
     # one must, and every card carries a headline sentence.
     assert any(word in body for word in ("Worth changing", "Borderline", "Keep"))
     assert body.count("card-headline") >= 15
+
+
+def test_refresh_status_endpoint(client):
+    body = client.get("/api/refresh").json()
+    assert "running" in body
+    assert body["running"] in (True, False)
+
+
+def test_assets_are_version_stamped(client):
+    """Without a fingerprint, an open tab keeps running yesterday's JavaScript and a
+    working feature looks broken."""
+    body = client.get("/").text
+    assert "/static/style.css?v=" in body
+    assert "/static/app.js?v=" in body
+
+
+def test_squad_page_versions_its_own_script(client):
+    assert "/static/squad.js?v=" in client.get("/squad").text
+
+
+def test_pages_render_without_reopening_the_database(client):
+    """Every page goes through one shared handle. If a route opened its own
+    connection the refresh endpoint could not write while the UI was in use."""
+    import importlib
+
+    # fpl.web re-exports the FastAPI instance as `app`, so import the module by name.
+    module = importlib.import_module("fpl.web.app")
+    assert module._shared_db is not None
+    for path in ("/", "/squad", "/advice"):
+        assert client.get(path).status_code == 200

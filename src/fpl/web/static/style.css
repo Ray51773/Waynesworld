@@ -323,3 +323,16 @@ table.compare { margin-top: 10px; max-width: 560px; }
   padding: 7px 0; border-bottom: 1px solid var(--line);
 }
 .pair-row:last-of-type { border-bottom: none; }
+
+/* ------------------------------------------------------------ refresh button */
+.refresh-control { display: flex; align-items: center; gap: 10px; }
+#refresh-button {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 12px; font-size: 13px; font-weight: 500;
+}
+#refresh-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); filter: none; }
+#refresh-button:disabled { opacity: .6; cursor: default; }
+.refresh-status { font-size: 11px; color: var(--dim); max-width: 260px; }
+.refresh-status.up { color: var(--good); }
+.refresh-status.down { color: var(--bad); }

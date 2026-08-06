@@ -88,18 +88,24 @@ Nothing here updates itself. Worth being clear about that, because "is it curren
 three different answers depending on what you mean.
 
 **The data.** The store is a snapshot. Prices, injuries, ownership and set-piece orders
-only move when you run `fpl refresh`. The tool caches politely (five minutes for the main
-endpoint, six hours for per-player detail), so running it hourly costs almost nothing and
-is the right rhythm in the days before a deadline, when prices and team news actually move.
+only move when you fetch them. There is a **Refresh data** button in the header of every
+page — press it and the page reloads with the new figures. It takes a few seconds, tells
+you what changed, and is the normal way to keep things current.
 
-To automate that on Windows, register a scheduled task once, adjusting the path to your
-checkout:
+The tool caches politely (five minutes for the main endpoint, six hours for per-player
+detail), so pressing it repeatedly is harmless. The right rhythm is a press or two in the
+days before a deadline, when prices and team news actually move.
+
+To have it happen without you, register a scheduled task once, adjusting the path to your
+checkout. Only worth it if you want data collected while the app is closed — note that
+price history is only as complete as the snapshots you took:
 
 ```powershell
 schtasks /create /tn "FPL refresh" /sc hourly /tr "'C:\Users\you\Desktop\ffl\.venv\Scripts\python.exe' -m fpl.cli refresh" /f
 ```
 
-Stop `fpl serve` while it runs, or the write will collide — see "One writer at a time".
+Stop `fpl serve` while a scheduled run fires, or the write will collide — see "One writer
+at a time". If the app is open anyway, the button is simpler.
 
 **The model.** This is the part that genuinely goes stale. Every rate is currently fitted
 on the 2025/26 season, because no 2026/27 match has been played. Once games are played,
@@ -167,11 +173,13 @@ the database from them is not written yet — for now a delete means refetching.
 
 ### One writer at a time
 
-DuckDB allows many readers or one writer, across the whole machine. In practice: stop
-`fpl serve` before running `fpl refresh` or `fpl import-history`, and do not run the test
-suite while the server is up. Reading is fine concurrently; writing while the server holds
-the file open will fail, and can take the server down with it. Worth fixing properly with
-a single shared connection — not done yet.
+DuckDB allows many readers or one writer across the whole machine, so the server holds
+the database open once for the whole process and hands out cursors internally. That is
+what lets the **Refresh data** button write while you are using the app.
+
+The limit still applies between processes: while `fpl serve` is running, a separate
+`fpl refresh`, `fpl import-history` or test run in a terminal will fail to open the file.
+Use the button instead, or stop the server first.
 
 ## Being a good guest on the API
 

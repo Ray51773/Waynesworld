@@ -262,3 +262,34 @@ def test_chip_windows_are_two_sets_expiring_at_gw19(bootstrap):
     assert first == {"wildcard", "freehit", "bboost", "3xc"}
     assert second == {"wildcard", "freehit", "bboost", "3xc"}
     assert len(chips) == 8
+
+
+# ------------------------------------------------------------------- cursors
+def test_cursor_shares_the_database(db: Database):
+    """The web server holds one handle and hands out cursors, so a write through a
+    cursor must be visible to the parent — otherwise a refresh would appear to do
+    nothing."""
+    t0 = datetime(2026, 8, 1, tzinfo=UTC)
+    child = db.cursor()
+    try:
+        child.append_on_change("players_state", [_state_row(1, t0, 1)], ["element_id"])
+        assert db.scalar("SELECT COUNT(*) FROM players_state") == 1
+    finally:
+        child.close()
+
+
+def test_closing_a_cursor_leaves_the_database_open(db: Database):
+    child = db.cursor()
+    child.close()
+    assert db.scalar("SELECT 1") == 1
+
+
+def test_cursors_report_utc(db: Database):
+    """Session settings are per-connection. A cursor that quietly falls back to local
+    time misreports every deadline."""
+    parent = db.scalar("SELECT current_setting('TimeZone')")
+    child = db.cursor()
+    try:
+        assert child.scalar("SELECT current_setting('TimeZone')") == parent == "UTC"
+    finally:
+        child.close()

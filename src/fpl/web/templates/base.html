@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}FPL Optimiser{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
 </head>
 <body>
@@ -19,6 +19,15 @@
     <a href="/players" class="{{ 'on' if request.url.path.startswith('/player') and not request.url.path.startswith('/players') or request.url.path == '/players' }}">Players</a>
     <a href="/fixtures" class="{{ 'on' if request.url.path == '/fixtures' }}">Fixtures</a>
   </nav>
+  <div class="refresh-control">
+    <button type="button" id="refresh-button" title="Fetch the latest prices, injuries and team news">
+      Refresh data
+    </button>
+    <span id="refresh-status" class="refresh-status">
+      {% if last_refresh %}updated {{ last_refresh.strftime('%d %b %H:%M') }} UTC{% endif %}
+    </span>
+  </div>
+
   <div class="deadline">
     {% if next_event %}
       <span class="label">{{ next_event.name }} deadline</span>
@@ -49,6 +58,6 @@
   </span>
 </footer>
 
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v={{ asset_version }}"></script>
 </body>
 </html>

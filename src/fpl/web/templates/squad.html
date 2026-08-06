@@ -96,5 +96,5 @@
 {% if existing %}
 <script id="existing-squad" type="application/json">{{ existing | tojson }}</script>
 {% endif %}
-<script src="/static/squad.js"></script>
+<script src="/static/squad.js?v={{ asset_version }}"></script>
 {% endblock %}
