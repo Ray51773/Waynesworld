@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waynesworld FPL Optimiser</title>
+  <meta name="description" content="A local Fantasy Premier League decision-support tool for transfers, captaincy, fixtures, and squad planning.">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17201b;
+      --muted: #5c6b63;
+      --paper: #f7f4ec;
+      --panel: #fffdf8;
+      --line: #d8d0bf;
+      --green: #0f7f4f;
+      --lime: #b7e04b;
+      --blue: #2457a6;
+      --rose: #c95252;
+      --gold: #f4b942;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(23, 32, 27, 0.12);
+      background: rgba(247, 244, 236, 0.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .nav {
+      width: min(1120px, calc(100% - 32px));
+      min-height: 64px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: var(--lime);
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .button {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid var(--ink);
+      padding: 9px 14px;
+      text-decoration: none;
+      font-weight: 750;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      background: var(--ink);
+      color: #fffdf8;
+    }
+
+    .hero {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      min-height: calc(100svh - 64px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+      gap: 42px;
+      align-items: center;
+      padding: 52px 0 36px;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      border: 1px solid rgba(15, 127, 79, 0.26);
+      border-radius: 999px;
+      background: rgba(183, 224, 75, 0.28);
+      color: #115738;
+      padding: 7px 11px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    h1 {
+      margin: 18px 0 16px;
+      font-size: clamp(44px, 9vw, 92px);
+      line-height: 0.94;
+      letter-spacing: 0;
+      max-width: 780px;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 640px;
+      color: var(--muted);
+      font-size: clamp(18px, 2.2vw, 22px);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .trust-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 34px;
+      max-width: 620px;
+    }
+
+    .metric {
+      border-top: 2px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .product-preview {
+      position: relative;
+      border: 1px solid rgba(23, 32, 27, 0.18);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 24px 70px rgba(23, 32, 27, 0.16);
+      overflow: hidden;
+    }
+
+    .app-topbar {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fffaf0;
+    }
+
+    .status-pill {
+      border-radius: 999px;
+      background: rgba(15, 127, 79, 0.12);
+      color: var(--green);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .preview-body {
+      display: grid;
+      grid-template-columns: 1fr 0.72fr;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .pitch {
+      min-height: 460px;
+      border-radius: 8px;
+      border: 1px solid rgba(15, 127, 79, 0.26);
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+        linear-gradient(145deg, #106b45, #169363);
+      background-size: 48px 48px, 48px 48px, auto;
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      align-content: space-between;
+    }
+
+    .line {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .player {
+      width: clamp(58px, 7vw, 78px);
+      min-height: 58px;
+      border-radius: 8px;
+      background: #fffdf8;
+      border: 1px solid rgba(23, 32, 27, 0.18);
+      display: grid;
+      place-items: center;
+      padding: 7px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #17201b;
+      box-shadow: 0 8px 18px rgba(23, 32, 27, 0.18);
+    }
+
+    .panel-stack {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .advice-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fffdf8;
+    }
+
+    .advice-card h2,
+    .section h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .advice-card p,
+    .section p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .swap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      font-weight: 800;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .badge.green {
+      color: #0d5f3b;
+      background: rgba(15, 127, 79, 0.14);
+    }
+
+    .badge.gold {
+      color: #704b04;
+      background: rgba(244, 185, 66, 0.24);
+    }
+
+    .badge.rose {
+      color: #7a2525;
+      background: rgba(201, 82, 82, 0.16);
+    }
+
+    .sections {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 70px;
+      display: grid;
+      gap: 28px;
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .section {
+      border-top: 2px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .run-panel {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #171f1b;
+      color: #fffdf8;
+      padding: 22px;
+      display: grid;
+      gap: 10px;
+      overflow-x: auto;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 0;
+      color: var(--muted);
+    }
+
+    .footer-inner {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-top: 38px;
+      }
+
+      .preview-body,
+      .section-grid,
+      .trust-row {
+        grid-template-columns: 1fr;
+      }
+
+      .pitch {
+        min-height: 360px;
+      }
+
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 0;
+      }
+
+      .nav-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav" aria-label="Main navigation">
+      <div class="brand">
+        <span class="mark">WW</span>
+        <span>Waynesworld FPL Optimiser</span>
+      </div>
+      <div class="nav-actions">
+        <a class="button" href="https://github.com/Ray51773/Waynesworld">GitHub repo</a>
+        <a class="button primary" href="#run">Run locally</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Fantasy Premier League 2026/27</div>
+        <h1>Waynesworld</h1>
+        <p class="lead">
+          A local FPL decision-support tool that projects points, reviews your squad,
+          ranks transfers, and gives captaincy options with the reasoning shown.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/Ray51773/Waynesworld">View the code</a>
+          <a class="button" href="#what-it-does">What it does</a>
+        </div>
+        <div class="trust-row" aria-label="Project highlights">
+          <div class="metric">
+            <strong>570</strong>
+            <span>players loaded from the FPL API</span>
+          </div>
+          <div class="metric">
+            <strong>11,498</strong>
+            <span>player-gameweeks verified by the scoring engine</span>
+          </div>
+          <div class="metric">
+            <strong>Local</strong>
+            <span>no accounts, credentials, or writes to the FPL API</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="product-preview" aria-label="Static preview of the local optimiser interface">
+        <div class="app-topbar">
+          <strong>Squad review</strong>
+          <span class="status-pill">Data fresh</span>
+        </div>
+        <div class="preview-body">
+          <div class="pitch">
+            <div class="line"><span class="player">Raya</span></div>
+            <div class="line">
+              <span class="player">Gabriel</span>
+              <span class="player">Virgil</span>
+              <span class="player">Porro</span>
+            </div>
+            <div class="line">
+              <span class="player">Saka</span>
+              <span class="player">Palmer</span>
+              <span class="player">Salah</span>
+              <span class="player">Bruno</span>
+            </div>
+            <div class="line">
+              <span class="player">Haaland</span>
+              <span class="player">Isak</span>
+              <span class="player">Watkins</span>
+            </div>
+          </div>
+          <div class="panel-stack">
+            <article class="advice-card">
+              <span class="badge green">Best move</span>
+              <div class="swap">
+                <span>Roll transfer</span>
+                <span>+0.0</span>
+              </div>
+              <p>Nothing affordable beats the current squad by enough over the horizon.</p>
+            </article>
+            <article class="advice-card">
+              <span class="badge gold">Captain</span>
+              <div class="swap">
+                <span>Top xP option</span>
+                <span>2x</span>
+              </div>
+              <p>Captain choices include expected points, haul chance, and blank risk.</p>
+            </article>
+            <article class="advice-card">
+              <span class="badge rose">Caveat</span>
+              <div class="swap">
+                <span>Bonus model</span>
+                <span>provisional</span>
+              </div>
+              <p>BPS weights need refitting once live 2026/27 match data exists.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sections" id="what-it-does">
+      <div class="section-grid">
+        <article class="section">
+          <h2>Transfer Advice</h2>
+          <p>Reviews all fifteen squad players, compares legal replacements, accounts for bank and selling value, and explains the biggest drivers.</p>
+        </article>
+        <article class="section">
+          <h2>Captaincy</h2>
+          <p>Ranks captain options with projected points, fixture context, haul probability, and blank risk.</p>
+        </article>
+        <article class="section">
+          <h2>Local Data Store</h2>
+          <p>Keeps append-only snapshots in DuckDB so prices, ownership, injuries, and set-piece changes can be audited over time.</p>
+        </article>
+      </div>
+
+      <div class="run-panel" id="run">
+        <strong>Run the working app locally</strong>
+        <code>python -m venv .venv</code>
+        <code>.venv/Scripts/python -m pip install -e .</code>
+        <code>.venv/Scripts/python -m fpl.cli refresh</code>
+        <code>.venv/Scripts/python -m fpl.cli serve</code>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>This GitHub Pages site is static. The optimiser itself runs as a local Python/FastAPI app.</span>
+      <a href="https://github.com/Ray51773/Waynesworld">github.com/Ray51773/Waynesworld</a>
+    </div>
+  </footer>
+</body>
+</html>
