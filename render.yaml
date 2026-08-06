@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: waynesworld-fpl
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: python scripts/serve_public.py
+    envVars:
+      - key: FPL_DATA_DIR
+        value: /opt/render/project/src/data
+      - key: FPL_MANAGER_ID
+        value: "0"

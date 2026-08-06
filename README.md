@@ -82,6 +82,9 @@ Four pages, server-rendered, no CDN and no build step, bound to localhost.
 everyone with xG, xA and defensive-contribution rates for browsing; **Fixtures** is the
 difficulty ticker. Status and scoring rules are linked in the footer.
 
+To run the working app publicly, use an app host rather than GitHub Pages. See
+`DEPLOY.md`.
+
 ## Keeping it current
 
 Nothing here updates itself. Worth being clear about that, because "is it current?" has
