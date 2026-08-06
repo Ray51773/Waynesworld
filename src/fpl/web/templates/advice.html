@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Advice · FPL Optimiser{% endblock %}
+
+{% block content %}
+{% if not squad %}
+  <h1>Advice</h1>
+  <div class="notice">
+    <strong>No squad yet.</strong>
+    <a href="/squad">Pick your fifteen</a> first, then come back here.
+  </div>
+{% else %}
+
+<h1>What to do</h1>
+
+{# ---------------------------------------------------------------- headline #}
+{% set swaps = verdicts | selectattr('verdict', 'equalto', 'swap') | list %}
+<div class="verdict-headline {{ 'act' if swaps else 'hold' }}">
+  {% if swaps %}
+    {% set top = swaps[0] %}
+    <div class="headline-action">
+      Swap <b>{{ top.player.web_name }}</b> for <b>{{ top.best_swap.in_player.web_name }}</b>
+    </div>
+    <div class="headline-why">
+      Worth about <b>{{ '%+.1f'|format(top.gain) }} points</b> over the next {{ horizon }}
+      gameweeks{% if top.best_swap.hits %}, after the {{ top.best_swap.hits * 4 }}-point hit{% endif %}.
+      {% if swaps | length > 1 %}
+        {{ swaps | length - 1 }} other player{{ 's' if swaps|length > 2 }} also worth changing —
+        listed below.
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="headline-action">Make no transfer</div>
+    <div class="headline-why">
+      Nothing available beats what you already have by enough to be worth it. Roll your
+      transfer and you will have {{ [squad.free_transfers + 1, 5] | min }} next week.
+    </div>
+  {% endif %}
+</div>
+
+<div class="quick-stats">
+  <span><b>{{ '%.0f'|format(baseline.per_event[0]) }}</b> projected this gameweek</span>
+  <span><b>£{{ '%.1f'|format(squad.bank / 10) }}m</b> in the bank</span>
+  <span><b>{{ squad.free_transfers }}</b> free transfer{{ 's' if squad.free_transfers != 1 }}</span>
+  {% if captain %}<span>captain <b>{{ captain.web_name }}</b></span>{% endif %}
+</div>
+
+{% if squad_problems %}
+<div class="notice">
+  <strong>Your squad is not legal:</strong> {{ squad_problems | join('; ') }}.
+  Fix it on the <a href="/squad">squad page</a> — advice will be unreliable until you do.
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------ player review #}
+<h2 class="section-head">Your fifteen</h2>
+<p class="section-note">
+  Every player judged against the best replacement you could actually afford. Click any
+  row for the full reasoning.
+</p>
+
+{% for group, title, blurb in [
+     ('swap', 'Worth changing', 'A clearly better player is available and affordable.'),
+     ('consider', 'Borderline', 'A small upgrade exists, but probably not worth using a transfer on.'),
+     ('keep', 'Keep', 'Nothing affordable beats them.')] %}
+  {% set members = verdicts | selectattr('verdict', 'equalto', group) | list %}
+  {% if members %}
+  <div class="verdict-group">
+    <div class="group-head">
+      <span class="verdict-badge {{ group }}">{{ title }}</span>
+      <span class="muted">{{ blurb }}</span>
+    </div>
+
+    {% for item in members %}
+    <details class="player-card {{ group }}">
+      <summary>
+        <span class="tag pos-{{ item.player.position }}">{{ item.player.position }}</span>
+        <span class="card-name">
+          {{ item.player.web_name }}
+          <span class="muted">{{ item.player.team }} · £{{ '%.1f'|format(item.player.now_cost / 10) }}m</span>
+          {% if item.unavailable %}<span class="tag bad">flagged</span>{% endif %}
+          {% if not item.starts_xi %}<span class="tag">bench</span>{% endif %}
+        </span>
+        <span class="card-headline">{{ item.headline }}</span>
+        <span class="card-xp">{{ '%.0f'|format(item.horizon_xp) }} <small>xP</small></span>
+      </summary>
+
+      <div class="card-body">
+        {% for line in item.detail %}<p class="reason">{{ line }}</p>{% endfor %}
+
+        {% if item.best_swap %}
+          <div class="swap-detail">
+            <div class="swap-title">
+              Best replacement: <b>{{ item.best_swap.in_player.web_name }}</b>
+              ({{ item.best_swap.in_player.team }},
+              £{{ '%.1f'|format(item.best_swap.in_player.now_cost / 10) }}m)
+              <span class="{{ 'up' if item.gain > 0 else 'muted' }}">{{ '%+.1f'|format(item.gain) }} pts</span>
+            </div>
+            {% for reason in item.best_swap.reasoning %}<p class="reason">{{ reason }}</p>{% endfor %}
+          </div>
+        {% else %}
+          <p class="reason muted">No affordable replacement in this position.</p>
+        {% endif %}
+
+        <p class="reason muted">
+          <a href="/player/{{ item.player.element_id }}">Full breakdown for {{ item.player.web_name }}</a>
+        </p>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endfor %}
+
+{# ---------------------------------------------------------------- captain #}
+{% if captain_options %}
+<h2 class="section-head">Captain</h2>
+<p class="section-note">
+  Doubling the right player is worth more than most transfers. Expected points is the
+  safe measure; the chance of a haul matters more if you are chasing.
+</p>
+<div class="panel">
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Player</th><th>Fixture</th><th class="num">xP</th>
+          <th class="num">Doubled</th><th class="num">Chance of 10+</th><th class="num">Chance of a blank</th></tr>
+    </thead>
+    <tbody>
+      {% for option in captain_options[:5] %}
+      <tr>
+        <td>
+          <span class="tag pos-{{ option.position }}">{{ option.position }}</span>
+          {{ option.web_name }}
+          {% if loop.first %}<span class="tag good">pick</span>{% endif %}
+        </td>
+        <td>{{ option.opponent }} {{ 'H' if option.is_home else 'A' }}</td>
+        <td class="num">{{ '%.1f'|format(option.xp) }}</td>
+        <td class="num"><b>{{ '%.1f'|format(option.captain_xp) }}</b></td>
+        <td class="num {{ 'up' if option.p_haul > 0.12 }}">{{ '%.0f'|format(option.p_haul * 100) }}%</td>
+        <td class="num {{ 'down' if option.p_blank > 0.5 }}">{{ '%.0f'|format(option.p_blank * 100) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ team #}
+<h2 class="section-head">Your team this gameweek</h2>
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>Starting eleven <span class="hint">{{ formation[1] }}-{{ formation[2] }}-{{ formation[3] }}</span></h2>
+    <table>
+      <tbody>
+        {% for player in xi %}
+        <tr>
+          <td><span class="tag pos-{{ player.position }}">{{ player.position }}</span></td>
+          <td><a href="/player/{{ player.element_id }}">{{ player.web_name }}</a></td>
+          <td class="muted">{{ player.team }}</td>
+          <td class="num">{{ '%.1f'|format(xp_now[player.element_id]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Bench <span class="hint">in substitution order</span></h2>
+    <table>
+      <tbody>
+        {% for player in bench %}
+        <tr>
+          <td><span class="tag pos-{{ player.position }}">{{ player.position }}</span></td>
+          <td><a href="/player/{{ player.element_id }}">{{ player.web_name }}</a></td>
+          <td class="muted">{{ player.team }}</td>
+          <td class="num">{{ '%.1f'|format(xp_now[player.element_id]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if pairs %}
+<h2 class="section-head">If you want to make two changes</h2>
+<div class="panel">
+  {% for rec in pairs %}
+  <div class="pair-row">
+    <span>{{ rec.description }}</span>
+    <span class="{{ 'up' if rec.gain > 0 else 'down' }}">{{ '%+.1f'|format(rec.gain) }} pts</span>
+  </div>
+  {% endfor %}
+  <p class="reason muted" style="margin-top:10px">
+    A second transfer costs 4 points unless you have two free, so it has to earn that back
+    before it is worth doing.
+  </p>
+</div>
+{% endif %}
+
+<details class="panel" style="margin-top:20px">
+  <summary class="muted" style="cursor:pointer">How much to trust this</summary>
+  <ul style="margin:10px 0 0;padding-left:20px;color:var(--muted)">
+    {% for note in model_notes %}<li>{{ note }}</li>{% endfor %}
+    <li>The model has not been backtested yet, so treat this as a reasoned argument
+        rather than an answer.</li>
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

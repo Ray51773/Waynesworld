@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}My squad · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>My squad</h1>
+<p class="page-intro">
+  Enter your fifteen. Picks are not public until the first deadline passes, so before
+  then this is the only way the tool can see your team. Set the price you actually paid
+  where it differs from today's — selling value halves your profit, and getting it wrong
+  makes the optimiser suggest transfers you cannot afford.
+</p>
+
+<div class="squad-layout">
+  <div class="panel squad-builder">
+    <h2>Your fifteen <span class="hint" id="squad-count">0 of 15</span></h2>
+
+    <div class="budget-row">
+      <div class="stat">
+        <div class="n" id="squad-value">0.0</div>
+        <div class="k">squad value (£m)</div>
+      </div>
+      <div class="stat">
+        <div class="n" id="squad-remaining">100.0</div>
+        <div class="k">remaining (£m)</div>
+      </div>
+      <div class="field">
+        <label for="bank">Bank (£m)</label>
+        <input type="number" id="bank" value="0.0" step="0.1" min="0">
+      </div>
+      <div class="field">
+        <label for="free-transfers">Free transfers</label>
+        <input type="number" id="free-transfers" value="1" min="0" max="5">
+      </div>
+    </div>
+
+    <div id="squad-slots"></div>
+
+    <div id="squad-problems" class="problems"></div>
+
+    <div class="save-row">
+      <button type="button" id="save-squad">Save squad</button>
+      <button type="button" class="reset" id="clear-squad">Clear</button>
+      <span id="save-status" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Add players <span class="hint">click to add · xP is over the next {{ 6 }} gameweeks</span></h2>
+    <div class="filters" style="margin-bottom:12px;padding:0;border:none;background:none">
+      <div class="field">
+        <label for="pool-search">Search</label>
+        <input type="text" id="pool-search" placeholder="name">
+      </div>
+      <div class="field">
+        <label for="pool-position">Position</label>
+        <select id="pool-position">
+          <option value="all">all</option>
+          <option>GKP</option><option>DEF</option><option>MID</option><option>FWD</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pool-max">Max £m</label>
+        <input type="number" id="pool-max" value="15.5" step="0.5" min="3.5">
+      </div>
+      <div class="field">
+        <label for="pool-sort">Sort by</label>
+        <select id="pool-sort">
+          <option value="xp_horizon">xP (horizon)</option>
+          <option value="xp_next">xP (next GW)</option>
+          <option value="total_points">last season points</option>
+          <option value="selected_by_percent">ownership</option>
+          <option value="price">price</option>
+        </select>
+      </div>
+    </div>
+    <div class="scroll" style="max-height:640px">
+      <table>
+        <thead>
+          <tr><th>Player</th><th>Team</th><th>Pos</th><th class="num">£m</th>
+              <th class="num">xP1</th><th class="num">xP6</th><th class="num">Own</th></tr>
+        </thead>
+        <tbody id="pool-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="notice info" style="margin-top:16px">
+  <strong>What the projections are built on.</strong>
+  <ul style="margin:8px 0 0;padding-left:20px">
+    {% for note in model_notes %}<li>{{ note }}</li>{% endfor %}
+  </ul>
+</div>
+
+<script id="player-pool" type="application/json">{{ pool | tojson }}</script>
+{% if existing %}
+<script id="existing-squad" type="application/json">{{ existing | tojson }}</script>
+{% endif %}
+<script src="/static/squad.js"></script>
+{% endblock %}

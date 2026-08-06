@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Captain · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>Captain</h1>
+
+{% if not squad %}
+  <div class="notice">
+    <strong>No squad saved.</strong> <a href="/squad">Enter your fifteen</a> first.
+  </div>
+{% else %}
+<p class="page-intro">
+  Ranked by expected points, but the ranking is not the whole answer. Chance of a haul
+  matters more than the average when you are chasing, and less when you are protecting a
+  rank — so both are shown rather than collapsed into one number.
+</p>
+
+<div class="panel">
+  <h2>Options <span class="hint">captain score is doubled</span></h2>
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Player</th><th>Pos</th><th>Fixture</th>
+        <th class="num">xP</th><th class="num">As captain</th>
+        <th class="num">P(10+)</th><th class="num">P(blank)</th><th class="num">90th pct</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for option in options %}
+      <tr>
+        <td>
+          <a href="/player/{{ option.element_id }}">{{ option.web_name }}</a>
+          {% if loop.first %}<span class="tag good">top xP</span>{% endif %}
+        </td>
+        <td><span class="tag pos-{{ option.position }}">{{ option.position }}</span></td>
+        <td>
+          {{ option.opponent }} {{ 'H' if option.is_home else 'A' }}
+          <span class="fdr fdr-{{ option.difficulty | round | int }}" style="display:inline-block;min-width:22px;text-align:center">{{ '%.1f'|format(option.difficulty) }}</span>
+        </td>
+        <td class="num">{{ '%.2f'|format(option.xp) }}</td>
+        <td class="num"><b>{{ '%.2f'|format(option.captain_xp) }}</b></td>
+        <td class="num {{ 'up' if option.p_haul > 0.12 }}">{{ '%.1f'|format(option.p_haul * 100) }}%</td>
+        <td class="num {{ 'down' if option.p_blank > 0.55 }}">{{ '%.0f'|format(option.p_blank * 100) }}%</td>
+        <td class="num">{{ '%.0f'|format(option.p90) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if options|length > 1 %}
+{% set safe = options[0] %}
+{% set aggressive = options | sort(attribute='p_haul') | reverse | first %}
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="panel">
+    <h2>Safest <span class="hint">highest expected points</span></h2>
+    <p class="reason">
+      <b>{{ safe.web_name }}</b> against {{ safe.opponent }}
+      {{ 'at home' if safe.is_home else 'away' }}, projecting
+      {{ '%.2f'|format(safe.xp) }} points, so {{ '%.2f'|format(safe.captain_xp) }} with the armband.
+      He blanks {{ '%.0f'|format(safe.p_blank * 100) }}% of the time.
+    </p>
+  </div>
+  <div class="panel">
+    <h2>Highest ceiling <span class="hint">best chance of a haul</span></h2>
+    <p class="reason">
+      <b>{{ aggressive.web_name }}</b> has the best chance of double figures at
+      {{ '%.1f'|format(aggressive.p_haul * 100) }}%
+      {%- if aggressive.element_id != safe.element_id %},
+      against {{ '%.1f'|format(safe.p_haul * 100) }}% for {{ safe.web_name }}, at a cost of
+      {{ '%.2f'|format(safe.xp - aggressive.xp) }} expected points.
+      Worth it if you need to make up ground, not if you are protecting a rank.
+      {%- else %} — the same player also has the highest expected points, so there is no
+      trade-off to make this week.
+      {%- endif %}
+    </p>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="notice info" style="margin-top:20px">
+  <strong>Caveats.</strong>
+  <ul style="margin:8px 0 0;padding-left:20px">
+    {% for note in model_notes %}<li>{{ note }}</li>{% endfor %}
+    <li>Effective ownership is not modelled yet, so the differential case is made on
+        haul probability alone. That understates the cost of captaining a highly owned
+        player differently from the field.</li>
+  </ul>
+</div>
+{% endblock %}

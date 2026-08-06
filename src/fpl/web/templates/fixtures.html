@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Fixtures · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>Fixture ticker</h1>
+<p class="page-intro">
+  Teams ordered by easiest run over the window, using the official difficulty rating.
+  The spec calls for a model-derived difficulty alongside this one — that needs fitted
+  attack and defence ratings, which is Milestone 4 work.
+</p>
+
+<form class="filters" method="get">
+  <div class="field">
+    <label for="start">From gameweek</label>
+    <input type="number" id="start" name="start" value="{{ window.start }}" min="1" max="38">
+  </div>
+  <div class="field">
+    <label for="span">Gameweeks</label>
+    <input type="number" id="span" name="span" value="{{ window.span }}" min="1" max="12">
+  </div>
+  <button type="submit">Show</button>
+</form>
+
+<div class="panel">
+  <h2>
+    GW{{ window.start }}–{{ window.end }}
+    <span class="hint">green is easier · a cell with two fixtures is a double gameweek</span>
+  </h2>
+  <div class="scroll">
+  <table class="ticker">
+    <thead>
+      <tr>
+        <th class="team-col">Team</th>
+        {% for e in events %}<th class="num">GW{{ e }}</th>{% endfor %}
+        <th class="num">Avg</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for team, events_map in grid.items() %}
+      <tr>
+        <td class="team-col">{{ team }}</td>
+        {% for e in events %}
+        <td>
+          {% set fs = events_map.get(e) %}
+          {% if fs %}
+            {% for f in fs %}
+            <span class="fdr fdr-{{ f.difficulty }} {{ 'dbl' if fs|length > 1 }}">
+              {{ f.opponent }}<small>{{ 'H' if f.is_home else 'A' }}</small>
+            </span>
+            {% endfor %}
+          {% else %}
+            <span class="fdr fdr-blank">—</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+        <td class="num">{{ mean_difficulty[team] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

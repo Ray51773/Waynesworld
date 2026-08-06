@@ -1,0 +1,19 @@
+# Local data. None of this belongs in the repo: it is either your own squad and
+# history, or a cache that any clone can rebuild with `fpl refresh`.
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

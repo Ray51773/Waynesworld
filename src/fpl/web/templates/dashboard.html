@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p class="page-intro">
+  What the local store currently knows. Expected points, transfer recommendations and
+  captaincy arrive once the projection model is built — nothing here is a forecast.
+</p>
+
+<div class="grid cols-3" style="margin-bottom:16px">
+  <div class="panel">
+    <div class="stat-row">
+      <div class="stat"><div class="n">{{ counts.players }}</div><div class="k">players</div></div>
+      <div class="stat"><div class="n">{{ counts.fixtures }}</div><div class="k">fixtures</div></div>
+      <div class="stat"><div class="n">{{ counts.snapshots }}</div><div class="k">snapshots</div></div>
+    </div>
+  </div>
+
+  {% if next_event %}
+  <div class="panel">
+    <h2>{{ next_event.name }}</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="n" data-deadline="{{ next_event.deadline_time.isoformat() }}">{{ next_event.deadline_time | countdown }}</div>
+        <div class="k">until deadline</div>
+      </div>
+    </div>
+    <p class="muted" style="margin:10px 0 0;font-size:12px">
+      {{ next_event.deadline_time.strftime('%A %d %B %Y, %H:%M') }} UTC
+    </p>
+  </div>
+  {% endif %}
+
+  {% if entry %}
+  <div class="panel">
+    <h2>{{ entry.name }}</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="n">{{ entry.summary_overall_points if entry.summary_overall_points is not none else '—' }}</div>
+        <div class="k">points</div>
+      </div>
+      <div class="stat">
+        <div class="n">{{ '{:,}'.format(entry.summary_overall_rank) if entry.summary_overall_rank else '—' }}</div>
+        <div class="k">overall rank</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if squad %}
+<div class="panel" style="margin-bottom:16px">
+  <h2>Your squad</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Pos</th><th class="num">Price</th><th>Role</th></tr></thead>
+    <tbody>
+      {% for p in squad %}
+      <tr>
+        <td class="num">{{ p.slot }}</td>
+        <td>{{ p.web_name }}</td>
+        <td>{{ p.team }}</td>
+        <td><span class="tag pos-{{ p.position }}">{{ p.position }}</span></td>
+        <td class="num">{{ '%.1f'|format(p.price) }}</td>
+        <td>
+          {% if p.is_captain %}<span class="tag good">C</span>
+          {% elif p.is_vice_captain %}<span class="tag">V</span>
+          {% elif p.slot > 11 %}<span class="muted">bench</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="notice info">
+  <strong>No squad yet.</strong>
+  <a href="/squad">Pick your fifteen</a>, then open <a href="/advice">Advice</a> to see
+  what to change.
+</div>
+{% endif %}
+
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>Injuries and doubts <span class="hint">owned by &gt;1%</span></h2>
+    {% if injuries %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Player</th><th>Team</th><th class="num">Owned</th><th class="num">Chance</th><th>News</th></tr></thead>
+      <tbody>
+        {% for p in injuries %}
+        <tr>
+          <td>{{ p.web_name }}</td>
+          <td>{{ p.team }}</td>
+          <td class="num">{{ '%.1f'|format(p.owned) }}%</td>
+          <td class="num">
+            {% if p.chance is none %}—
+            {% elif p.chance == 0 %}<span class="tag bad">0%</span>
+            {% elif p.chance < 75 %}<span class="tag warn">{{ p.chance }}%</span>
+            {% else %}{{ p.chance }}%{% endif %}
+          </td>
+          <td class="muted" style="font-size:12px">{{ p.news or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">No flagged players above 1% ownership.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Penalty takers <span class="hint">first choice</span></h2>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Player</th><th>Team</th><th>Pos</th><th class="num">Price</th><th class="num">Owned</th></tr></thead>
+      <tbody>
+        {% for p in penalty_takers %}
+        <tr>
+          <td><a href="/players?search={{ p.web_name }}">{{ p.web_name }}</a></td>
+          <td>{{ p.team }}</td>
+          <td><span class="tag pos-{{ p.position }}">{{ p.position }}</span></td>
+          <td class="num">{{ '%.1f'|format(p.price) }}</td>
+          <td class="num">{{ '%.1f'|format(p.owned) }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Set-piece changes <span class="hint">high priority</span></h2>
+    {% if set_piece_moves %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Detected</th><th>Player</th><th>Field</th><th class="num">From</th><th class="num">To</th></tr></thead>
+      <tbody>
+        {% for c in set_piece_moves %}
+        <tr>
+          <td class="muted">{{ c.detected_at.strftime('%d %b %H:%M') }}</td>
+          <td>{{ c.web_name }} <span class="muted">{{ c.team }}</span></td>
+          <td style="font-size:12px">{{ c.field.replace('_order','').replace('_',' ') }}</td>
+          <td class="num">{{ c.old_value if c.old_value is not none else '—' }}</td>
+          <td class="num"><b>{{ c.new_value if c.new_value is not none else '—' }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">None detected. Needs at least two refreshes with different data.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Price moves</h2>
+    {% if price_moves %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Detected</th><th>Player</th><th class="num">From</th><th class="num">To</th></tr></thead>
+      <tbody>
+        {% for c in price_moves %}
+        <tr>
+          <td class="muted">{{ c.detected_at.strftime('%d %b %H:%M') }}</td>
+          <td>{{ c.web_name }} <span class="muted">{{ c.team }}</span></td>
+          <td class="num">{{ '%.1f'|format(c.old_price) }}</td>
+          <td class="num {{ 'up' if c.delta > 0 else 'down' }}">
+            {{ '%.1f'|format(c.new_price) }} {{ '▲' if c.delta > 0 else '▼' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">None detected yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h2>Chips <span class="hint">two sets; the first expires at the GW19 deadline</span></h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Chip</th><th>Type</th><th>Available from</th><th>Expires</th></tr></thead>
+    <tbody>
+      {% for c in chips %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td class="muted">{{ c.chip_type }}</td>
+        <td>GW{{ c.start_event }}</td>
+        <td>end of GW{{ c.stop_event }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

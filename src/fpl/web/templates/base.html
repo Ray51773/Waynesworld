@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FPL Optimiser{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">FPL</span>
+    <span class="sub">{{ season }}</span>
+  </div>
+  <nav>
+    <a href="/squad" class="{{ 'on' if request.url.path.startswith('/squad') }}">1. My squad</a>
+    <a href="/advice" class="{{ 'on' if request.url.path in ('/advice', '/transfers', '/captain') }}">2. Advice</a>
+    <a href="/players" class="{{ 'on' if request.url.path.startswith('/player') and not request.url.path.startswith('/players') or request.url.path == '/players' }}">Players</a>
+    <a href="/fixtures" class="{{ 'on' if request.url.path == '/fixtures' }}">Fixtures</a>
+  </nav>
+  <div class="deadline">
+    {% if next_event %}
+      <span class="label">{{ next_event.name }} deadline</span>
+      <span class="value" data-deadline="{{ next_event.deadline_time.isoformat() }}">
+        {{ next_event.deadline_time | countdown }}
+      </span>
+    {% else %}
+      <span class="label">no deadline loaded</span>
+    {% endif %}
+  </div>
+</header>
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  <span>
+    {% if last_refresh %}
+      data as of {{ last_refresh.strftime('%d %b %Y %H:%M') }} UTC
+    {% else %}
+      no data yet — run <code>fpl refresh</code>
+    {% endif %}
+  </span>
+  <span class="muted">
+    <a href="/">status</a> · <a href="/rules">scoring rules</a> ·
+    projections are a model, not a promise
+  </span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

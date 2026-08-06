@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Transfers · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>What to change</h1>
+
+{% if not squad %}
+  <p class="page-intro">Nothing to work with yet.</p>
+  <div class="notice">
+    <strong>No squad saved.</strong>
+    <a href="/squad">Enter your fifteen</a> and this page will rank every transfer worth
+    making, with the reasoning behind each one.
+  </div>
+{% else %}
+
+<p class="page-intro">
+  Every move below is scored by how much it changes your <em>whole squad's</em> expected
+  points over the next {{ horizon }} gameweeks — not by comparing two players in isolation.
+  A better striker is worth nothing if he sits on your bench, and that only shows up when
+  the eleven is re-picked after the swap. Later gameweeks are discounted at
+  {{ decay }} per week, because forecasts decay.
+</p>
+
+{% if squad_problems %}
+<div class="notice">
+  <strong>Squad is not legal:</strong> {{ squad_problems | join('; ') }}.
+  Recommendations may be unreliable until this is fixed on the <a href="/squad">squad page</a>.
+</div>
+{% endif %}
+
+<div class="grid cols-3" style="margin-bottom:16px">
+  <div class="panel">
+    <div class="stat-row">
+      <div class="stat"><div class="n">{{ '%.1f'|format(baseline.per_event[0]) }}</div><div class="k">GW{{ horizon_start }} projected</div></div>
+      <div class="stat"><div class="n">{{ '%.0f'|format(baseline.total) }}</div><div class="k">{{ horizon }}-week value</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="stat-row">
+      <div class="stat"><div class="n">{{ '%.1f'|format(squad.sell_value / 10) }}</div><div class="k">squad value (£m)</div></div>
+      <div class="stat"><div class="n">{{ '%.1f'|format(squad.bank / 10) }}</div><div class="k">bank (£m)</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="stat-row">
+      <div class="stat"><div class="n">{{ squad.free_transfers }}</div><div class="k">free transfers</div></div>
+      <div class="stat"><div class="n">{{ formation[1] }}-{{ formation[2] }}-{{ formation[3] }}</div><div class="k">best formation</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel recommendation hold">
+  <h2>{{ roll.description }} <span class="tag good">baseline</span></h2>
+  {% for reason in roll.reasoning %}<p class="reason">{{ reason }}</p>{% endfor %}
+</div>
+
+{% if singles and singles[0].gain > 0 %}
+<h2 style="margin:24px 0 12px">Single transfers, best first</h2>
+{% for move in singles %}
+  {% if move.gain > -1 %}
+  <details class="panel recommendation {{ 'positive' if move.gain > 0 else '' }}" {{ 'open' if loop.index <= 2 }}>
+    <summary>
+      <span class="move-rank">{{ loop.index }}</span>
+      <span class="move-label">
+        <b>{{ move.out_player.web_name }}</b> <span class="muted">({{ move.out_player.team }}, £{{ '%.1f'|format(move.out_player.now_cost / 10) }}m)</span>
+        →
+        <b>{{ move.in_player.web_name }}</b> <span class="muted">({{ move.in_player.team }}, £{{ '%.1f'|format(move.in_player.now_cost / 10) }}m)</span>
+      </span>
+      <span class="move-gain {{ 'up' if move.gain > 0 else 'down' }}">{{ '%+.2f'|format(move.gain) }} pts</span>
+    </summary>
+    <div class="reason-body">
+      {% for reason in move.reasoning %}<p class="reason">{{ reason }}</p>{% endfor %}
+      <table class="compare">
+        <thead><tr><th></th><th class="num">{{ horizon }}-GW xP</th><th class="num">Price</th><th>Team</th></tr></thead>
+        <tbody>
+          <tr><td>Out: {{ move.out_player.web_name }}</td>
+              <td class="num">{{ '%.1f'|format(move.out_xp) }}</td>
+              <td class="num">{{ '%.1f'|format(move.out_player.now_cost / 10) }}
+                {% if move.out_player.sell_value != move.out_player.now_cost %}
+                <span class="muted" title="selling value after the profit rule">(sells {{ '%.1f'|format(move.out_player.sell_value / 10) }})</span>
+                {% endif %}
+              </td>
+              <td>{{ move.out_player.team }}</td></tr>
+          <tr><td>In: {{ move.in_player.web_name }}</td>
+              <td class="num">{{ '%.1f'|format(move.in_xp) }}</td>
+              <td class="num">{{ '%.1f'|format(move.in_player.now_cost / 10) }}</td>
+              <td>{{ move.in_player.team }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+{% endfor %}
+{% else %}
+<div class="notice" style="margin-top:20px">
+  <strong>No transfer beats holding.</strong>
+  Every move the model can find loses points once the four-point hit and the fixture
+  discount are applied. Roll the transfer.
+</div>
+{% endif %}
+
+{% if doubles and doubles[0].gain > 0 %}
+<h2 style="margin:24px 0 12px">Two transfers</h2>
+{% for rec in doubles %}
+<div class="panel recommendation {{ 'positive' if rec.gain > 0 else '' }}">
+  <h2>{{ rec.description }}
+    <span class="move-gain {{ 'up' if rec.gain > 0 else 'down' }}">{{ '%+.2f'|format(rec.gain) }} pts</span>
+  </h2>
+  {% for reason in rec.reasoning %}<p class="reason">{{ reason }}</p>{% endfor %}
+  {% if rec.hits %}
+  <p class="reason muted">Costs {{ rec.hits * 4 }} points in hits, already subtracted.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="grid cols-2" style="margin-top:24px">
+  <div class="panel">
+    <h2>Projected eleven <span class="hint">GW{{ horizon_start }}</span></h2>
+    <table>
+      <thead><tr><th>Player</th><th>Pos</th><th>Team</th><th class="num">xP</th></tr></thead>
+      <tbody>
+        {% for player in xi %}
+        <tr>
+          <td><a href="/player/{{ player.element_id }}">{{ player.web_name }}</a></td>
+          <td><span class="tag pos-{{ player.position }}">{{ player.position }}</span></td>
+          <td>{{ player.team }}</td>
+          <td class="num">{{ '%.2f'|format(xp_now[player.element_id]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Bench <span class="hint">in the order they would come on</span></h2>
+    <table>
+      <thead><tr><th>Player</th><th>Pos</th><th>Team</th><th class="num">xP</th></tr></thead>
+      <tbody>
+        {% for player in bench %}
+        <tr>
+          <td><a href="/player/{{ player.element_id }}">{{ player.web_name }}</a></td>
+          <td><span class="tag pos-{{ player.position }}">{{ player.position }}</span></td>
+          <td>{{ player.team }}</td>
+          <td class="num">{{ '%.2f'|format(xp_now[player.element_id]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="notice info" style="margin-top:20px">
+  <strong>Where this is weak.</strong>
+  <ul style="margin:8px 0 0;padding-left:20px">
+    {% for note in model_notes %}<li>{{ note }}</li>{% endfor %}
+    <li>Two-transfer combinations are built from the best single moves rather than
+        searched exhaustively, which finds nearly the same moves far faster but is an
+        approximation.</li>
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ player.web_name if player else 'Player' }} · FPL Optimiser{% endblock %}
+
+{% block content %}
+{% if not player %}
+  <h1>Player not found</h1>
+  <p class="page-intro">No player with that ID in the local store. <a href="/players">Back to the explorer</a>.</p>
+{% else %}
+<div class="player-head">
+  <h1>{{ player.full_name }}</h1>
+  <span class="tag pos-{{ player.position }}">{{ player.position }}</span>
+  <span class="muted">{{ player.team_name }}</span>
+</div>
+
+{% if player.status != 'a' %}
+<div class="notice">
+  <strong>Flagged.</strong>
+  {{ player.news or 'No detail given.' }}
+  {% if player.chance_of_playing_next_round is not none %}
+    Chance of playing next round: {{ player.chance_of_playing_next_round }}%.
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="pill-row">
+  <span class="pill">Price <b>£{{ '%.1f'|format(player.price) }}m</b></span>
+  <span class="pill">Owned <b>{{ '%.1f'|format(player.selected_by_percent) }}%</b></span>
+  <span class="pill">Minutes <b>{{ player.minutes }}</b></span>
+  <span class="pill">Starts <b>{{ player.starts }}</b></span>
+  <span class="pill">Points <b>{{ player.total_points }}</b></span>
+  {% if player.points_per_million is not none %}
+  <span class="pill">Pts/£m <b>{{ player.points_per_million }}</b></span>
+  {% endif %}
+  {% if player.penalties_order %}<span class="pill">Penalties <b>#{{ player.penalties_order }}</b></span>{% endif %}
+  {% if player.direct_freekicks_order %}<span class="pill">Free kicks <b>#{{ player.direct_freekicks_order }}</b></span>{% endif %}
+  {% if player.corners_and_indirect_freekicks_order %}<span class="pill">Corners <b>#{{ player.corners_and_indirect_freekicks_order }}</b></span>{% endif %}
+</div>
+
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>Underlying rates <span class="hint">per 90</span></h2>
+    <table>
+      <tbody>
+        <tr><td>Expected goals</td><td class="num">{{ '%.2f'|format(player.expected_goals_per_90) if player.expected_goals_per_90 is not none else '—' }}</td></tr>
+        <tr><td>Expected assists</td><td class="num">{{ '%.2f'|format(player.expected_assists_per_90) if player.expected_assists_per_90 is not none else '—' }}</td></tr>
+        <tr><td>Expected goal involvements</td><td class="num">{{ '%.2f'|format(player.expected_goal_involvements_per_90) if player.expected_goal_involvements_per_90 is not none else '—' }}</td></tr>
+        <tr><td>Expected goals conceded</td><td class="num">{{ '%.2f'|format(player.expected_goals_conceded_per_90) if player.expected_goals_conceded_per_90 is not none else '—' }}</td></tr>
+        <tr>
+          <td>
+            Defensive actions
+            {% if player.defcon_reclassified %}
+              <span class="tag warn" title="Position changed since these were accrued">reclassified</span>
+            {% endif %}
+          </td>
+          <td class="num">{{ player.defcon_per_90 if player.defcon_per_90 is not none else '—' }}</td>
+        </tr>
+        {% if player.defcon_threshold %}
+        <tr><td class="muted">DEFCON threshold for {{ player.position }}</td><td class="num muted">{{ player.defcon_threshold }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% if player.defcon_reclassified %}
+    <p class="muted" style="font-size:12px;margin:10px 0 0">
+      This player's stored season total was accrued as a
+      {{ 'midfielder or forward' if player.position == 'DEF' else 'defender' }}, so it counts
+      a different set of actions than their current position does. The rate above is
+      recomputed from raw components under the {{ player.position }} rule.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Next fixtures</h2>
+    {% if fixtures %}
+    <table>
+      <thead><tr><th>GW</th><th>Opponent</th><th>H/A</th><th class="num">FDR</th></tr></thead>
+      <tbody>
+        {% for f in fixtures %}
+        <tr>
+          <td>{{ f.event }}</td>
+          <td>{{ f.opponent }}</td>
+          <td>{{ 'H' if f.is_home else 'A' }}</td>
+          <td class="num"><span class="fdr fdr-{{ f.difficulty }}" style="display:inline-block;min-width:24px">{{ f.difficulty }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No upcoming fixtures loaded.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h2>This season, by gameweek</h2>
+  {% if history %}
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>GW</th><th class="num">Mins</th><th class="num">G</th><th class="num">A</th>
+        <th class="num">CS</th><th class="num">GC</th><th class="num">Saves</th>
+        <th class="num">DC</th><th class="num">BPS</th><th class="num">Bonus</th><th class="num">Pts</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.event }}</td>
+        <td class="num">{{ h.minutes }}</td>
+        <td class="num">{{ h.goals_scored }}</td>
+        <td class="num">{{ h.assists }}</td>
+        <td class="num">{{ h.clean_sheets }}</td>
+        <td class="num">{{ h.goals_conceded }}</td>
+        <td class="num">{{ h.saves }}</td>
+        <td class="num">{{ h.defensive_contribution }}</td>
+        <td class="num">{{ h.bps }}</td>
+        <td class="num">{{ h.bonus }}</td>
+        <td class="num"><b>{{ h.total_points }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">
+    No gameweek history yet — the season has not started. This fills in after the first
+    matches, and it is what the DEFCON hit rate and minutes model will be built from.
+  </p>
+  {% endif %}
+</div>
+
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="panel">
+    <h2>Past seasons</h2>
+    {% if past_seasons %}
+    <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Season</th><th class="num">Pts</th><th class="num">Mins</th><th class="num">G</th>
+        <th class="num">A</th><th class="num">CS</th><th class="num">Bonus</th>
+        <th class="num">xG</th><th class="num">xA</th></tr>
+      </thead>
+      <tbody>
+        {% for s in past_seasons %}
+        <tr>
+          <td>{{ s.season_name }}</td>
+          <td class="num"><b>{{ s.total_points }}</b></td>
+          <td class="num">{{ s.minutes }}</td>
+          <td class="num">{{ s.goals_scored }}</td>
+          <td class="num">{{ s.assists }}</td>
+          <td class="num">{{ s.clean_sheets }}</td>
+          <td class="num">{{ s.bonus }}</td>
+          <td class="num">{{ '%.1f'|format(s.expected_goals) if s.expected_goals is not none else '—' }}</td>
+          <td class="num">{{ '%.1f'|format(s.expected_assists) if s.expected_assists is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">No past-season records.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Price and ownership <span class="hint">every recorded change</span></h2>
+    {% if price_history|length > 1 %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Observed</th><th class="num">Price</th><th class="num">Owned</th></tr></thead>
+      <tbody>
+        {% for r in price_history %}
+        <tr>
+          <td class="muted">{{ r.snapshot_at.strftime('%d %b %H:%M') }}</td>
+          <td class="num">{{ '%.1f'|format(r.price) }}</td>
+          <td class="num">{{ '%.1f'|format(r.selected_by_percent) }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">
+      Only one observation so far. This builds into a time series as refreshes accumulate —
+      the API only ever shows the present, so the history is whatever we have kept.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

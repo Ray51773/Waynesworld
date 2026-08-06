@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Players · FPL Optimiser{% endblock %}
+
+{% macro sort_link(col, label) %}
+  <a href="?position={{ filters.position }}&team={{ filters.team }}&max_price={{ filters.max_price }}&min_minutes={{ filters.min_minutes }}&search={{ filters.search }}&sort={{ col }}"
+     class="{{ 'sorted' if filters.sort == col }}">{{ label }}</a>
+{% endmacro %}
+
+{% block content %}
+<h1>Player explorer</h1>
+<p class="page-intro">
+  Season-to-date rates from the last completed season, plus current price and ownership.
+  DEFCON rates are recomputed from tackles, blocks/interceptions and recoveries under each
+  player's <em>current</em> position rule — never read off the stored total, which was
+  accrued under whatever position they held at the time.
+</p>
+
+<form class="filters" id="filters" method="get">
+  <div class="field">
+    <label for="search">Search</label>
+    <input type="text" id="search" name="search" value="{{ filters.search }}" placeholder="name">
+  </div>
+  <div class="field">
+    <label for="position">Position</label>
+    <select id="position" name="position">
+      {% for p in ['all','GKP','DEF','MID','FWD'] %}
+      <option value="{{ p }}" {{ 'selected' if filters.position == p }}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="team">Team</label>
+    <select id="team" name="team">
+      <option value="all" {{ 'selected' if filters.team == 'all' }}>all</option>
+      {% for t in teams %}
+      <option value="{{ t }}" {{ 'selected' if filters.team == t }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="max_price">Max price</label>
+    <input type="number" id="max_price" name="max_price" value="{{ filters.max_price }}" step="0.5" min="3.5" max="16">
+  </div>
+  <div class="field">
+    <label for="min_minutes">Min minutes</label>
+    <input type="number" id="min_minutes" name="min_minutes" value="{{ filters.min_minutes }}" step="90" min="0">
+  </div>
+  <input type="hidden" name="sort" value="{{ filters.sort }}">
+  <button type="submit">Apply</button>
+  <a class="tag" href="/players" style="padding:7px 14px">Reset</a>
+</form>
+
+<div class="panel">
+  <h2>
+    {{ players|length }} players
+    <span class="hint">sorted by {{ filters.sort.replace('_',' ') }} · click a heading to re-sort · max 300 rows</span>
+  </h2>
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>{{ sort_link('web_name','Player') }}</th>
+        <th>Team</th>
+        <th>Pos</th>
+        <th class="num">{{ sort_link('price','Price') }}</th>
+        <th class="num">{{ sort_link('selected_by_percent','Owned') }}</th>
+        <th class="num">{{ sort_link('minutes','Mins') }}</th>
+        <th class="num">{{ sort_link('total_points','Pts') }}</th>
+        <th class="num">{{ sort_link('points_per_million','Pts/£m') }}</th>
+        <th class="num">{{ sort_link('points_per_90','Pts/90') }}</th>
+        <th class="num">{{ sort_link('expected_goals_per_90','xG/90') }}</th>
+        <th class="num">{{ sort_link('expected_assists_per_90','xA/90') }}</th>
+        <th class="num">{{ sort_link('defcon_per_90','DC/90') }}</th>
+        <th class="num">Thr</th>
+        <th>Set pieces</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in players %}
+      <tr>
+        <td>
+          <a href="/player/{{ p.element_id }}">{{ p.web_name }}</a>
+          {% if p.status != 'a' %}<span class="tag bad" title="{{ p.news }}">!</span>{% endif %}
+        </td>
+        <td>{{ p.team }}</td>
+        <td><span class="tag pos-{{ p.position }}">{{ p.position }}</span></td>
+        <td class="num">{{ '%.1f'|format(p.price) }}</td>
+        <td class="num">{{ '%.1f'|format(p.selected_by_percent) }}%</td>
+        <td class="num">{{ p.minutes }}</td>
+        <td class="num"><b>{{ p.total_points }}</b></td>
+        <td class="num">{{ p.points_per_million if p.points_per_million is not none else '—' }}</td>
+        <td class="num">{{ p.points_per_90 if p.points_per_90 is not none else '—' }}</td>
+        <td class="num">{{ '%.2f'|format(p.expected_goals_per_90) if p.expected_goals_per_90 is not none else '—' }}</td>
+        <td class="num">{{ '%.2f'|format(p.expected_assists_per_90) if p.expected_assists_per_90 is not none else '—' }}</td>
+        <td class="num">
+          {% if p.defcon_per_90 is none or p.position == 'GKP' %}—
+          {% else %}
+            {% set hit = p.defcon_threshold and p.defcon_per_90 >= p.defcon_threshold %}
+            <span class="{{ 'up' if hit }}">{{ '%.1f'|format(p.defcon_per_90) }}</span>
+            {% if p.defcon_reclassified %}<span class="tag warn" title="Position changed since these stats were accrued; rate recomputed under the new rule.">R</span>{% endif %}
+          {% endif %}
+        </td>
+        <td class="num muted">{{ p.defcon_threshold or '—' }}</td>
+        <td style="font-size:11px">
+          {% if p.penalties_order %}<span class="tag good" title="Penalties">P{{ p.penalties_order }}</span>{% endif %}
+          {% if p.direct_freekicks_order %}<span class="tag" title="Direct free kicks">F{{ p.direct_freekicks_order }}</span>{% endif %}
+          {% if p.corners_and_indirect_freekicks_order %}<span class="tag" title="Corners and indirect free kicks">C{{ p.corners_and_indirect_freekicks_order }}</span>{% endif %}
+        </td>
+        <td class="num">
+          {% if p.cost_change_start %}
+            <span class="{{ 'up' if p.cost_change_start > 0 else 'down' }}" title="Price change since season start">
+              {{ '%+.1f'|format(p.cost_change_start / 10) }}
+            </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if not players %}
+  <p class="empty">No players match those filters.</p>
+  {% endif %}
+</div>
+
+<div class="notice info" style="margin-top:16px">
+  <strong>DC/90 is a rate, not a probability.</strong>
+  Defensive contribution points are a threshold — 10 actions for defenders, 12 for
+  everyone else outfield — so what actually matters is how often a player clears the bar,
+  not their average. That per-match hit rate needs gameweek data, which arrives once the
+  season starts. Until then this column is a season-average proxy, and a player averaging
+  just above the line is far less reliable than the number suggests.
+</div>
+{% endblock %}

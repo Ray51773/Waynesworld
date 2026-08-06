@@ -1,0 +1,45 @@
+# FPL Optimiser configuration.
+# Override any value with an environment variable, e.g. FPL_MANAGER_ID=1234567
+
+[manager]
+# Optional. Everything works from the squad you enter in the web UI; this only lets
+# the tool pull your official picks and history once the season has started.
+manager_id = 0
+mini_league_ids = []
+
+[season]
+name = "2026/27"
+# First set of chips expires at the GW19 deadline.
+first_chip_set_last_event = 19
+
+[strategy]
+target_rank = "top 100k"
+risk_posture = "balanced"   # balanced | aggressive | conservative
+horizon = 6
+decay = 0.85
+bench_weight = 0.15
+
+[data]
+dir = "data"
+
+[http]
+# Politeness. The API sends no ETags, so these TTLs plus content hashing are the
+# only thing standing between us and hammering it. See FINDINGS.md caveat 6.
+user_agent = "fpl-optimiser/0.1 (personal, local, read-only)"
+timeout_seconds = 20.0
+max_retries = 5
+# Global minimum spacing between requests, enforced across all threads. This is
+# the binding constraint on a full cold refresh (570 player summaries), not the
+# concurrency below: at 0.15s the sweep alone took 85s. 0.07s is ~14 req/s for
+# roughly 40 seconds, once every 6 hours. Raise it if you ever see a 429.
+min_interval_seconds = 0.07
+player_concurrency = 8
+
+[http.ttl_seconds]
+# bootstrap-static advertises max-age=300; we honour it.
+"bootstrap-static" = 300
+fixtures = 300
+"element-summary" = 21600   # 6h: only changes after matches
+"event-live" = 120
+entry = 300
+league = 900

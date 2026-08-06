@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Rules · FPL Optimiser{% endblock %}
+
+{% block content %}
+<h1>Scoring rules</h1>
+<p class="page-intro">
+  Read from the API, not hardcoded, so the engine follows the game when it changes.
+  These exact values drive the scoring engine, which reproduces all 11,498 of last
+  season's player-gameweeks to the point.
+</p>
+
+<div class="grid cols-2">
+  <div class="panel">
+    <h2>From the API <span class="hint">non-zero rules</span></h2>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Rule</th><th>Position</th><th class="num">Points</th></tr></thead>
+      <tbody>
+        {% for r in scoring %}
+        <tr>
+          <td>{{ r.rule_name.replace('_',' ') }}</td>
+          <td>{% if r.position == 'ALL' %}<span class="muted">all</span>{% else %}<span class="tag pos-{{ r.position }}">{{ r.position }}</span>{% endif %}</td>
+          <td class="num {{ 'down' if r.points < 0 else '' }}"><b>{{ r.points }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Not in the API <span class="hint">seeded from published rules</span></h2>
+    <table>
+      <tbody>
+        <tr><td>Appearance step</td><td class="num">{{ constants.appearance_minutes }} mins</td></tr>
+        <tr><td>Saves per point</td><td class="num">{{ constants.saves_per_point }}</td></tr>
+        <tr><td>Goals conceded per −1</td><td class="num">{{ constants.goals_conceded_per_penalty }}</td></tr>
+        <tr><td>DEFCON threshold, defenders</td><td class="num">{{ constants.defcon_threshold_def }}</td></tr>
+        <tr><td>DEFCON threshold, mid and forward</td><td class="num">{{ constants.defcon_threshold_mid_fwd }}</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:12px;margin:12px 0 0">
+      Source: <code>{{ constants.source }}</code>
+    </p>
+
+    <div class="notice" style="margin:16px 0 0">
+      <strong>BPS weightings are also missing from the API</strong>
+      and cannot be fitted from last season either, because the bonus system was reworked
+      for {{ season }}. They must be seeded from the published rules and then refitted from
+      live matches after a few gameweeks. Until that refit, any bonus projection carries
+      real uncertainty and will be labelled as such rather than shown as a settled number.
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h2>Game rules <span class="hint">squad and transfer constraints the optimiser must respect</span></h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Rule</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for r in game_rules %}
+      <tr>
+        <td>{{ r.rule_name.replace('_',' ') }}</td>
+        <td class="num">{{ r.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
