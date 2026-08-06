@@ -159,6 +159,22 @@ def test_set_piece_view_catches_a_penalty_order_promotion(db: Database):
     assert changes.row(0) == ("penalties_order", 2, 1)
 
 
+def test_snapshot_id_never_reuses_an_existing_row(db: Database):
+    """A migrated store can have rows ahead of the DuckDB sequence."""
+    db.con.execute(
+        """
+        INSERT INTO snapshots (
+            snapshot_id, endpoint, url, params, fetched_at, http_status,
+            content_sha256, raw_path, bytes, duration_ms, content_changed, from_cache
+        )
+        VALUES (573, 'bootstrap-static', '', '{}'::JSON, ?, 200, '', '', 0, 0, TRUE, FALSE)
+        """,
+        [datetime(2026, 8, 1, tzinfo=UTC)],
+    )
+
+    assert db.next_snapshot_id() == 574
+
+
 # ------------------------------------------------------------------- coercion
 @pytest.mark.parametrize("raw,expected", [("33.5", 33.5), ("", None), (None, None), (0.0, 0.0)])
 def test_float_coercion_at_the_json_boundary(raw, expected):
