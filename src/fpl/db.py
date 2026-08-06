@@ -68,9 +68,7 @@ class Database:
 
     # ------------------------------------------------------------ provenance
     def next_snapshot_id(self) -> int:
-        sequence_id = int(self.con.execute("SELECT nextval('seq_snapshot_id')").fetchone()[0])
-        max_id = int(self.scalar("SELECT COALESCE(MAX(snapshot_id), 0) FROM snapshots") or 0)
-        return max(sequence_id, max_id + 1)
+        return int(self.scalar("SELECT COALESCE(MAX(snapshot_id), 0) + 1 FROM snapshots") or 1)
 
     def previous_sha(self, endpoint: str, params: dict[str, Any]) -> str | None:
         row = self.con.execute(
